@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
 import {
   LayoutDashboard,
   CalendarDays,
@@ -24,31 +23,20 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { Separator } from "@/components/ui/separator";
+import { authClient, type AuthUser } from "@/lib/auth-client";
 
 const customerLinks = [
-  {
-    label: "Overview",
-    href: "/dashboard/customer",
-    icon: LayoutDashboard,
-  },
+  { label: "Overview", href: "/dashboard/customer", icon: LayoutDashboard },
   {
     label: "My Rentals",
     href: "/dashboard/customer/rentals",
     icon: CalendarDays,
   },
-  {
-    label: "Favorites",
-    href: "/dashboard/customer/favorites",
-    icon: Heart,
-  },
+  { label: "Favorites", href: "/dashboard/customer/favorites", icon: Heart },
 ];
 
 const ownerLinks = [
-  {
-    label: "Overview",
-    href: "/dashboard/owner",
-    icon: LayoutDashboard,
-  },
+  { label: "Overview", href: "/dashboard/owner", icon: LayoutDashboard },
   {
     label: "Add Equipment",
     href: "/dashboard/owner/add-equipment",
@@ -67,16 +55,8 @@ const ownerLinks = [
 ];
 
 const adminLinks = [
-  {
-    label: "Overview",
-    href: "/dashboard/admin",
-    icon: LayoutDashboard,
-  },
-  {
-    label: "Manage Users",
-    href: "/dashboard/admin/users",
-    icon: Users,
-  },
+  { label: "Overview", href: "/dashboard/admin", icon: LayoutDashboard },
+  { label: "Manage Users", href: "/dashboard/admin/users", icon: Users },
   {
     label: "Manage Equipment",
     href: "/dashboard/admin/equipment",
@@ -89,7 +69,9 @@ const adminLinks = [
   },
 ];
 
-function DashboardSidebar({ role }: { role: "customer" | "owner" | "admin" }) {
+type UserRole = "customer" | "owner" | "admin";
+
+function DashboardSidebar({ role }: { role: UserRole }) {
   const pathname = usePathname();
 
   const links =
@@ -99,11 +81,12 @@ function DashboardSidebar({ role }: { role: "customer" | "owner" | "admin" }) {
         ? adminLinks
         : customerLinks;
 
+  const profileHref = `/dashboard/${role}/profile`;
+
   const isActive = (href: string) => pathname === href;
 
   return (
     <div className="flex h-full flex-col bg-card">
-      {/* Logo */}
       <div className="flex h-20 items-center px-7">
         <Link href="/" className="text-3xl font-black tracking-tight">
           RENT<span className="text-yellow-500">RO</span>
@@ -112,7 +95,6 @@ function DashboardSidebar({ role }: { role: "customer" | "owner" | "admin" }) {
 
       <Separator />
 
-      {/* Navigation */}
       <div className="px-6 pb-3 pt-7">
         <p className="text-xs font-bold uppercase tracking-[0.16em] text-muted-foreground">
           Workspace
@@ -151,9 +133,9 @@ function DashboardSidebar({ role }: { role: "customer" | "owner" | "admin" }) {
         </p>
 
         <Link
-          href="/dashboard/profile"
+          href={profileHref}
           className={`flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold transition-all ${
-            isActive("/dashboard/profile")
+            isActive(profileHref)
               ? "bg-yellow-400 text-black"
               : "text-muted-foreground hover:bg-muted hover:text-foreground"
           }`}
@@ -171,7 +153,6 @@ function DashboardSidebar({ role }: { role: "customer" | "owner" | "admin" }) {
         </Link>
       </nav>
 
-      {/* Support */}
       <div className="border-t border-border p-5">
         <div className="rounded-2xl bg-muted/70 p-4">
           <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-yellow-400 text-black">
@@ -201,9 +182,13 @@ export default function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  // Temporary role for frontend development.
-  // Later this will come from the authenticated user's account.
-  const [role] = useState<"customer" | "owner" | "admin">("customer");
+  const { data: session, isPending } = authClient.useSession();
+
+  const user = session?.user;
+  const userRole = (user as AuthUser | undefined)?.role;
+
+  const role: UserRole =
+    userRole === "owner" || userRole === "admin" ? userRole : "customer";
 
   const dashboardTitle =
     role === "owner"
@@ -212,8 +197,16 @@ export default function DashboardLayout({
         ? "Admin Dashboard"
         : "Customer Dashboard";
 
+  if (isPending) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-yellow-400 border-t-transparent" />
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-background text-foreground">
+    <div className="w-full bg-background text-foreground">
       {/* Mobile Header */}
       <header className="sticky top-0 z-40 flex h-16 items-center justify-between border-b border-border bg-background px-5 lg:hidden">
         <Link href="/" className="text-2xl font-black tracking-tight">
@@ -239,42 +232,59 @@ export default function DashboardLayout({
         </Sheet>
       </header>
 
-      {/* Desktop Sidebar */}
-      <aside className="fixed inset-y-0 left-0 z-30 hidden w-[270px] border-r border-border bg-card lg:block">
-        <DashboardSidebar role={role} />
-      </aside>
+      {/* Desktop Dashboard Layout */}
+      <div className="hidden lg:grid lg:grid-cols-[270px_minmax(0,1fr)]">
+        <aside className="sticky top-0 h-screen w-[270px] border-r border-border bg-card">
+          <DashboardSidebar role={role} />
+        </aside>
 
-      {/* Main Content */}
-      <main className="min-h-screen lg:pl-[270px]">
-        {/* Desktop Topbar */}
-        <header className="hidden h-20 items-center justify-between border-b border-border bg-background px-8 lg:flex">
-          <div>
-            <p className="text-sm font-medium text-muted-foreground">
-              RENTRO Workspace
-            </p>
-
-            <h1 className="text-lg font-bold">{dashboardTitle}</h1>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-full border border-border bg-muted">
-              <UserRound size={19} />
-            </div>
-
+        {/* Main Content */}
+        <div className="min-w-0 w-full">
+          <header className="flex h-20 items-center justify-between border-b border-border bg-background px-8">
             <div>
-              <p className="text-sm font-bold">Welcome back!</p>
-              <p className="text-xs capitalize text-muted-foreground">
-                {role} account
+              <p className="text-sm font-medium text-muted-foreground">
+                RENTRO Workspace
               </p>
-            </div>
-          </div>
-        </header>
 
-        {/* Page Content */}
-        <div className="mx-auto w-full max-w-[1500px] p-5 sm:p-7 lg:p-8">
-          {children}
+              <h1 className="text-lg font-bold">{dashboardTitle}</h1>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full border border-border bg-muted">
+                {user?.image ? (
+                  <img
+                    src={user.image}
+                    alt={user.name || "User"}
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  <UserRound size={19} />
+                )}
+              </div>
+
+              <div>
+                <p className="text-sm font-bold">
+                  Welcome back{user?.name ? `, ${user.name}` : "!"}
+                </p>
+
+                <p className="text-xs capitalize text-muted-foreground">
+                  {role} account
+                </p>
+              </div>
+            </div>
+          </header>
+
+          {/* Page Content */}
+          <div className="w-full px-5 py-6 sm:px-8 sm:py-8 lg:px-10">
+            <div className="mx-auto w-full max-w-7xl">{children}</div>
+          </div>
         </div>
-      </main>
+      </div>
+
+      {/* Mobile Content */}
+      <div className="lg:hidden">
+        <div className="w-full px-5 py-6 sm:px-8 sm:py-8">{children}</div>
+      </div>
     </div>
   );
 }
