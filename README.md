@@ -1,36 +1,130 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# RENTRO – Equipment Rental Marketplace
 
-## Getting Started
+**Rent Smart. Access More. Own Less.**
 
-First, run the development server:
+RENTRO is a modern equipment rental marketplace designed to connect equipment owners with customers who need equipment for temporary use. It provides an intuitive platform to explore equipment, manage rental listings, book equipment, and complete secure online payments.
+
+## 🌐 Live Application
+
+- **Live Website:** (https://equipment-rental-client-iota.vercel.app/)
+- **Backend API:** (https://equipment-rental-server-eight.vercel.app/)
+- **Backend Repository:** (https://github.com/mohosenat/equipment-rental-server)
+
+## ✨ Features
+
+### Authentication
+
+- User registration and login
+- Role-based access for Customers, Owners, and Admins
+- Protected dashboard access
+- User profile management
+
+### Equipment Marketplace
+
+- Browse approved equipment listings
+- View detailed equipment information
+- Search and filter equipment
+- Explore rental prices, categories, conditions, and locations
+
+### Favorites
+
+- Add equipment to favorites
+- Remove saved equipment
+- View favorite equipment from the customer dashboard
+
+### Rental Booking
+
+- Select rental start and end dates
+- Specify required quantity
+- Automatic rental cost calculation
+- Equipment availability checking
+- Contact and delivery information
+
+### Payment
+
+- Stripe Checkout integration
+- Secure online payment processing
+- Payment success and cancellation pages
+
+### Customer Dashboard
+
+- Manage personal profile
+- View favorite equipment
+- Track rental bookings
+
+### Owner Dashboard
+
+- Add new equipment
+- Manage equipment listings
+- Update and delete equipment
+- Manage rental activities
+
+### Admin Dashboard
+
+- Manage users
+- Review equipment listings
+- Manage rental activities
+
+## 🛠️ Technologies Used
+
+- Next.js
+- React
+- TypeScript
+- Tailwind CSS
+- shadcn/ui
+- Better Auth
+- Lucide React
+
+````
+
+## ⚙️ Installation & Setup
+
+### 1. Clone the Repository
+
+```bash
+git clone https://github.com/mohosenat/equipment-rental-client.git
+````
+
+### 2. Navigate to the Project
+
+```bash
+cd equipment-rental-client
+```
+
+### 3. Install Dependencies
+
+```bash
+npm install
+```
+
+### 4. Configure Environment Variables
+
+Create a `.env` file in the project root:
+
+```env
+NEXT_PUBLIC_API_URL=your_backend_api_url
+```
+
+### 5. Run Development Server
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open http://localhost:3000 in your browser.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## 🚀 Deployment
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+The frontend is deployed using Vercel.
 
-## Learn More
+Configure the required environment variables in your Vercel project settings before deployment.
 
-To learn more about Next.js, take a look at the following resources:
+## 👩‍💻 Developer
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+**Mohosenat Jahan**
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Full-Stack Web Developer
 
-## Deploy on Vercel
+---
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+⭐ Thanks for exploring RENTRO!
