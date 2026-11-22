@@ -9,9 +9,7 @@ import {
   Package,
   ShieldCheck,
   CalendarDays,
-  Clock,
   UserRound,
-  Star,
   CheckCircle2,
   Loader2,
   Plus,
@@ -82,6 +80,16 @@ const getConditionLabel = (condition: string) => {
   return labels[condition] || condition;
 };
 
+// Get current date-time in the browser's local timezone.
+// Important for datetime-local inputs.
+const getLocalDateTimeValue = (date = new Date()) => {
+  const localDate = new Date(
+    date.getTime() - date.getTimezoneOffset() * 60 * 1000,
+  );
+
+  return localDate.toISOString().slice(0, 16);
+};
+
 const getAuthHeaders = async () => {
   const { data, error } = await authClient.token();
 
@@ -128,7 +136,7 @@ export default function EquipmentDetailsClient({ id }: { id: string }) {
         cache: "no-store",
       });
 
-      const result = await response.json();
+      const result = await response.json().catch(() => ({}));
 
       if (response.status === 401 || response.status === 403) {
         router.replace("/login");
@@ -147,14 +155,14 @@ export default function EquipmentDetailsClient({ id }: { id: string }) {
 
       setEquipment(item);
 
-      // Load favorite status
+      // Load favorite status.
       try {
         const favoriteResponse = await fetch(`${API_URL}/favorites`, {
           headers,
           cache: "no-store",
         });
 
-        const favoriteResult = await favoriteResponse.json();
+        const favoriteResult = await favoriteResponse.json().catch(() => ({}));
 
         if (favoriteResponse.ok) {
           const favorites: Favorite[] = favoriteResult.data || [];
@@ -193,6 +201,7 @@ export default function EquipmentDetailsClient({ id }: { id: string }) {
     loadEquipment();
   }, [loadEquipment]);
 
+  // Add or remove favorite.
   const handleFavorite = async () => {
     if (!equipment || favoriteLoading) return;
 
@@ -218,7 +227,7 @@ export default function EquipmentDetailsClient({ id }: { id: string }) {
         },
       );
 
-      const result = await response.json();
+      const result = await response.json().catch(() => ({}));
 
       if (!response.ok) {
         throw new Error(result.message || "Unable to update favorites.");
@@ -249,6 +258,7 @@ export default function EquipmentDetailsClient({ id }: { id: string }) {
     setBookingOpen(true);
   };
 
+  // Create Stripe Checkout Session.
   const handleBooking = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
@@ -256,21 +266,42 @@ export default function EquipmentDetailsClient({ id }: { id: string }) {
 
     setBookingError("");
 
+    // Validate selected dates.
     if (!startDate || !endDate) {
       setBookingError("Please select your rental dates.");
       return;
     }
 
-    if (new Date(endDate) <= new Date(startDate)) {
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    const now = new Date();
+
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+      setBookingError("Please select valid rental dates.");
+      return;
+    }
+
+    if (start <= now) {
+      setBookingError("Start date must be in the future.");
+      return;
+    }
+
+    if (end <= start) {
       setBookingError("End date must be after start date.");
       return;
     }
 
-    if (quantity < 1 || quantity > equipment.quantity) {
+    // Validate quantity.
+    if (
+      !Number.isInteger(Number(quantity)) ||
+      Number(quantity) < 1 ||
+      Number(quantity) > equipment.quantity
+    ) {
       setBookingError("Please select a valid equipment quantity.");
       return;
     }
 
+    // Validate contact information.
     if (!contactNumber.trim() || !deliveryAddress.trim()) {
       setBookingError("Contact number and delivery address are required.");
       return;
@@ -288,8 +319,11 @@ export default function EquipmentDetailsClient({ id }: { id: string }) {
           headers,
           body: JSON.stringify({
             equipmentId: equipment._id,
-            startDate,
-            endDate,
+
+            // Convert browser local time to UTC ISO format.
+            startDate: start.toISOString(),
+            endDate: end.toISOString(),
+
             quantity: Number(quantity),
             contactNumber: contactNumber.trim(),
             deliveryAddress: deliveryAddress.trim(),
@@ -298,38 +332,52 @@ export default function EquipmentDetailsClient({ id }: { id: string }) {
         },
       );
 
-      const result = await response.json();
+      const result = await response.json().catch(() => ({}));
 
       if (!response.ok) {
-        throw new Error(result.message || "Unable to create booking.");
+        throw new Error(
+          result.message || "Unable to create Stripe Checkout session.",
+        );
       }
 
       const checkoutUrl = result.data?.checkoutUrl || result.checkoutUrl;
 
-      if (!checkoutUrl) {
-        throw new Error("Stripe Checkout URL was not received.");
+      // Validate Stripe Checkout URL.
+      if (
+        typeof checkoutUrl !== "string" ||
+        !checkoutUrl.startsWith("https://checkout.stripe.com/")
+      ) {
+        throw new Error("Invalid Stripe Checkout URL received from server.");
       }
 
-      // Redirect customer to Stripe Checkout
-      window.location.href = checkoutUrl;
+      // Redirect to Stripe Checkout.
+      window.location.assign(checkoutUrl);
     } catch (error) {
-      setBookingError(
+      const message =
         error instanceof Error
           ? error.message
-          : "Something went wrong. Please try again.",
-      );
+          : "Something went wrong. Please try again.";
 
+      if (message.toLowerCase().includes("authentication")) {
+        router.push("/login");
+        return;
+      }
+
+      setBookingError(message);
       setBookingLoading(false);
     }
   };
 
+  // Loading state.
   if (loading) {
     return (
       <main className="min-h-screen bg-background px-4 py-20">
         <div className="mx-auto max-w-6xl animate-pulse space-y-8">
           <div className="h-5 w-32 rounded bg-muted" />
+
           <div className="grid gap-8 lg:grid-cols-2">
             <div className="aspect-[4/3] rounded-3xl bg-muted" />
+
             <div className="space-y-5 py-4">
               <div className="h-5 w-28 rounded bg-muted" />
               <div className="h-10 w-3/4 rounded bg-muted" />
@@ -343,6 +391,7 @@ export default function EquipmentDetailsClient({ id }: { id: string }) {
     );
   }
 
+  // Error state.
   if (pageError || !equipment) {
     return (
       <main className="flex min-h-[70vh] flex-col items-center justify-center px-4 text-center">
@@ -419,6 +468,7 @@ export default function EquipmentDetailsClient({ id }: { id: string }) {
               </div>
 
               <button
+                type="button"
                 onClick={handleFavorite}
                 disabled={favoriteLoading}
                 aria-label={
@@ -517,6 +567,7 @@ export default function EquipmentDetailsClient({ id }: { id: string }) {
 
               <div className="mt-5 flex flex-col gap-3 sm:flex-row">
                 <button
+                  type="button"
                   onClick={openBooking}
                   disabled={equipment.quantity < 1}
                   className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-yellow-400 px-5 py-3.5 font-bold text-black transition hover:bg-yellow-300 disabled:cursor-not-allowed disabled:opacity-50"
@@ -526,6 +577,7 @@ export default function EquipmentDetailsClient({ id }: { id: string }) {
                 </button>
 
                 <button
+                  type="button"
                   onClick={handleFavorite}
                   disabled={favoriteLoading}
                   className={`flex items-center justify-center gap-2 rounded-xl border px-5 py-3.5 font-semibold transition ${
@@ -682,8 +734,10 @@ export default function EquipmentDetailsClient({ id }: { id: string }) {
             </div>
 
             <button
+              type="button"
               onClick={openBooking}
-              className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-yellow-400 px-5 py-3.5 font-bold text-black transition hover:bg-yellow-300"
+              disabled={equipment.quantity < 1}
+              className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-yellow-400 px-5 py-3.5 font-bold text-black transition hover:bg-yellow-300 disabled:cursor-not-allowed disabled:opacity-50"
             >
               Rent This Equipment
               <ChevronRight size={18} />
@@ -724,6 +778,7 @@ export default function EquipmentDetailsClient({ id }: { id: string }) {
               </div>
 
               <button
+                type="button"
                 onClick={() => setBookingOpen(false)}
                 disabled={bookingLoading}
                 className="flex size-9 items-center justify-center rounded-full bg-muted text-muted-foreground transition hover:text-foreground disabled:opacity-50"
@@ -736,11 +791,17 @@ export default function EquipmentDetailsClient({ id }: { id: string }) {
             <form onSubmit={handleBooking} className="space-y-4 p-5 sm:p-6">
               {/* Equipment preview */}
               <div className="flex items-center gap-3 rounded-2xl bg-muted/60 p-3">
-                <img
-                  src={equipment.image}
-                  alt={equipment.name}
-                  className="size-16 rounded-xl object-cover"
-                />
+                {equipment.image ? (
+                  <img
+                    src={equipment.image}
+                    alt={equipment.name}
+                    className="size-16 rounded-xl object-cover"
+                  />
+                ) : (
+                  <div className="flex size-16 shrink-0 items-center justify-center rounded-xl bg-background text-muted-foreground">
+                    <Package size={25} />
+                  </div>
+                )}
 
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-bold text-foreground">
@@ -768,9 +829,18 @@ export default function EquipmentDetailsClient({ id }: { id: string }) {
                     id="startDate"
                     type="datetime-local"
                     required
-                    min={new Date().toISOString().slice(0, 16)}
+                    min={getLocalDateTimeValue()}
                     value={startDate}
-                    onChange={(event) => setStartDate(event.target.value)}
+                    onChange={(event) => {
+                      setStartDate(event.target.value);
+
+                      if (
+                        endDate &&
+                        new Date(endDate) <= new Date(event.target.value)
+                      ) {
+                        setEndDate("");
+                      }
+                    }}
                     className="w-full min-w-0 rounded-xl border border-border bg-background px-3 py-3 text-xs text-foreground outline-none transition focus:border-yellow-400 focus:ring-2 focus:ring-yellow-400/20"
                   />
                 </div>
@@ -787,7 +857,7 @@ export default function EquipmentDetailsClient({ id }: { id: string }) {
                     id="endDate"
                     type="datetime-local"
                     required
-                    min={startDate || new Date().toISOString().slice(0, 16)}
+                    min={startDate || getLocalDateTimeValue()}
                     value={endDate}
                     onChange={(event) => setEndDate(event.target.value)}
                     className="w-full min-w-0 rounded-xl border border-border bg-background px-3 py-3 text-xs text-foreground outline-none transition focus:border-yellow-400 focus:ring-2 focus:ring-yellow-400/20"
