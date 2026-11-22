@@ -12,8 +12,12 @@ import {
   EyeOff,
   ArrowRight,
   Loader2,
+  UserRound,
+  BriefcaseBusiness,
 } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
+
+type RegisterRole = "customer" | "owner";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -22,6 +26,7 @@ export default function RegisterPage() {
   const [email, setEmail] = useState("");
   const [photoURL, setPhotoURL] = useState("");
   const [password, setPassword] = useState("");
+  const [role, setRole] = useState<RegisterRole>("customer");
 
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
@@ -50,6 +55,7 @@ export default function RegisterPage() {
     if (photoURL.trim()) {
       try {
         const parsedURL = new URL(photoURL);
+
         if (!["http:", "https:"].includes(parsedURL.protocol)) {
           throw new Error("Invalid URL");
         }
@@ -62,12 +68,17 @@ export default function RegisterPage() {
     try {
       setLoading(true);
 
-      const result = await authClient.signUp.email({
+      const signUpData = {
         name: name.trim(),
         email: email.trim(),
         password,
         image: photoURL.trim() || undefined,
-      });
+        role,
+      };
+
+      const result = await authClient.signUp.email(
+        signUpData as Parameters<typeof authClient.signUp.email>[0],
+      );
 
       if (result.error) {
         setError(
@@ -80,6 +91,7 @@ export default function RegisterPage() {
       router.refresh();
     } catch (err) {
       console.error("Registration error:", err);
+
       setError(
         err instanceof Error
           ? err.message
@@ -237,6 +249,73 @@ export default function RegisterPage() {
                   placeholder="https://example.com/photo.jpg"
                   className="w-full rounded-xl border border-border bg-background py-3 pl-11 pr-4 text-foreground outline-none transition focus:border-yellow-400 focus:ring-2 focus:ring-yellow-400/20"
                 />
+              </div>
+            </div>
+
+            {/* Account Type */}
+            <div>
+              <label className="mb-2 block text-sm font-medium text-foreground">
+                Select Account Type
+              </label>
+
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => setRole("customer")}
+                  className={`flex items-center gap-3 rounded-xl border p-3 text-left transition ${
+                    role === "customer"
+                      ? "border-yellow-400 bg-yellow-400/10 ring-2 ring-yellow-400/20"
+                      : "border-border bg-background hover:border-yellow-400/50"
+                  }`}
+                >
+                  <div
+                    className={`flex size-10 shrink-0 items-center justify-center rounded-lg ${
+                      role === "customer"
+                        ? "bg-yellow-400 text-black"
+                        : "bg-muted text-muted-foreground"
+                    }`}
+                  >
+                    <UserRound size={20} />
+                  </div>
+
+                  <div>
+                    <p className="text-sm font-semibold text-foreground">
+                      Customer
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Rent equipment
+                    </p>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setRole("owner")}
+                  className={`flex items-center gap-3 rounded-xl border p-3 text-left transition ${
+                    role === "owner"
+                      ? "border-yellow-400 bg-yellow-400/10 ring-2 ring-yellow-400/20"
+                      : "border-border bg-background hover:border-yellow-400/50"
+                  }`}
+                >
+                  <div
+                    className={`flex size-10 shrink-0 items-center justify-center rounded-lg ${
+                      role === "owner"
+                        ? "bg-yellow-400 text-black"
+                        : "bg-muted text-muted-foreground"
+                    }`}
+                  >
+                    <BriefcaseBusiness size={20} />
+                  </div>
+
+                  <div>
+                    <p className="text-sm font-semibold text-foreground">
+                      Owner
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      List equipment
+                    </p>
+                  </div>
+                </button>
               </div>
             </div>
 
