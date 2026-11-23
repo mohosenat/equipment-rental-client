@@ -91,16 +91,21 @@ const getLocalDateTimeValue = (date = new Date()) => {
 };
 
 const getAuthHeaders = async () => {
-  const { data, error } = await authClient.token();
+  try {
+    const { data, error } = await authClient.token();
 
-  if (error || !data?.token) {
-    throw new Error("Authentication required. Please log in again.");
+    if (error || !data?.token) {
+      throw new Error("Authentication required. Please log in again.");
+    }
+
+    return {
+      Authorization: `Bearer ${data.token}`,
+      "Content-Type": "application/json",
+    };
+  } catch (error) {
+    console.error("JWT TOKEN FETCH FAILED:", error);
+    throw error;
   }
-
-  return {
-    Authorization: `Bearer ${data.token}`,
-    "Content-Type": "application/json",
-  };
 };
 
 export default function EquipmentDetailsClient({ id }: { id: string }) {
@@ -179,6 +184,8 @@ export default function EquipmentDetailsClient({ id }: { id: string }) {
         console.error("Favorite loading error:", error);
       }
     } catch (error) {
+      console.error("LOAD EQUIPMENT ERROR:", error);
+
       if (
         error instanceof Error &&
         error.message.toLowerCase().includes("authentication")
@@ -319,11 +326,8 @@ export default function EquipmentDetailsClient({ id }: { id: string }) {
           headers,
           body: JSON.stringify({
             equipmentId: equipment._id,
-
-            // Convert browser local time to UTC ISO format.
             startDate: start.toISOString(),
             endDate: end.toISOString(),
-
             quantity: Number(quantity),
             contactNumber: contactNumber.trim(),
             deliveryAddress: deliveryAddress.trim(),
@@ -367,7 +371,6 @@ export default function EquipmentDetailsClient({ id }: { id: string }) {
       setBookingLoading(false);
     }
   };
-
   // Loading state.
   if (loading) {
     return (
@@ -419,329 +422,288 @@ export default function EquipmentDetailsClient({ id }: { id: string }) {
   }
 
   return (
-    <main className="min-h-screen bg-background pb-20">
+    <main className="min-h-screen bg-background pb-24">
       {/* Breadcrumb */}
-      <div className="border-b border-border">
-        <div className="mx-auto flex max-w-7xl items-center gap-2 px-4 py-5 text-sm sm:px-6 lg:px-8">
-          <Link
-            href="/"
-            className="text-muted-foreground transition hover:text-yellow-500"
-          >
+      <div className="border-b border-border/60">
+        <div className="mx-auto flex max-w-6xl items-center gap-2 px-4 py-3 text-xs text-muted-foreground sm:px-6">
+          <Link href="/" className="transition hover:text-yellow-500">
             Home
           </Link>
-
-          <ChevronRight size={15} className="text-muted-foreground" />
-
-          <Link
-            href="/equipment"
-            className="text-muted-foreground transition hover:text-yellow-500"
-          >
+          <ChevronRight size={13} />
+          <Link href="/equipment" className="transition hover:text-yellow-500">
             Equipment
           </Link>
-
-          <ChevronRight size={15} className="text-muted-foreground" />
-
-          <span className="max-w-[180px] truncate font-medium text-foreground">
-            {equipment.name}
-          </span>
+          <ChevronRight size={13} />
+          <span className="truncate text-foreground">{equipment.name}</span>
         </div>
       </div>
 
-      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-        {/* Back */}
-        <Link
-          href="/equipment"
-          className="mb-7 inline-flex items-center gap-2 text-sm font-medium text-muted-foreground transition hover:text-yellow-500"
-        >
-          <ArrowLeft size={17} />
-          Back to equipment
-        </Link>
+      <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-8">
+        {/* Top header */}
+        <div className="mb-5 flex items-center justify-between">
+          <Link
+            href="/equipment"
+            className="inline-flex items-center gap-2 text-sm text-muted-foreground transition hover:text-foreground"
+          >
+            <ArrowLeft size={16} />
+            <span>Back to equipment</span>
+          </Link>
 
-        {/* Main Showcase */}
-        <div className="grid items-start gap-9 lg:grid-cols-[1.15fr_0.85fr] lg:gap-14">
-          {/* Image */}
-          <div className="space-y-4">
-            <div className="group relative overflow-hidden rounded-3xl border border-border bg-muted">
-              <div className="absolute left-5 top-5 z-10 flex items-center gap-2 rounded-full bg-background/90 px-4 py-2 text-xs font-bold text-foreground shadow-sm backdrop-blur">
-                <CheckCircle2 size={15} className="text-green-500" />
-                Verified listing
-              </div>
+          <button
+            type="button"
+            onClick={handleFavorite}
+            disabled={favoriteLoading}
+            aria-label={
+              isFavorite ? "Remove from favorites" : "Add to favorites"
+            }
+            className={`flex size-10 items-center justify-center rounded-full border transition ${
+              isFavorite
+                ? "border-red-500/20 bg-red-500/10 text-red-500"
+                : "border-border bg-card text-muted-foreground hover:border-yellow-400 hover:text-yellow-500"
+            }`}
+          >
+            {favoriteLoading ? (
+              <Loader2 size={18} className="animate-spin" />
+            ) : (
+              <Heart size={18} className={isFavorite ? "fill-current" : ""} />
+            )}
+          </button>
+        </div>
 
-              <button
-                type="button"
-                onClick={handleFavorite}
-                disabled={favoriteLoading}
-                aria-label={
-                  isFavorite ? "Remove from favorites" : "Add to favorites"
-                }
-                className="absolute right-5 top-5 z-10 flex size-11 items-center justify-center rounded-full border border-border bg-background/90 text-foreground shadow-sm backdrop-blur transition hover:scale-105 hover:text-red-500 disabled:opacity-50"
-              >
-                {favoriteLoading ? (
-                  <Loader2 size={19} className="animate-spin" />
-                ) : (
-                  <Heart
-                    size={21}
-                    className={isFavorite ? "fill-red-500 text-red-500" : ""}
-                  />
-                )}
-              </button>
+        {/* Title */}
+        <div className="mb-6">
+          <div className="mb-2 flex flex-wrap items-center gap-2">
+            <span className="rounded-md bg-yellow-400/15 px-2.5 py-1 text-xs font-semibold capitalize text-yellow-700 dark:text-yellow-400">
+              {equipment.category}
+            </span>
 
-              {equipment.image ? (
-                <img
-                  src={equipment.image}
-                  alt={equipment.name}
-                  className="aspect-[4/3] w-full object-cover transition duration-700 group-hover:scale-[1.03]"
-                />
-              ) : (
-                <div className="flex aspect-[4/3] items-center justify-center text-muted-foreground">
-                  <Package size={64} />
-                </div>
-              )}
-            </div>
-
-            {/* Short highlights */}
-            <div className="grid grid-cols-3 gap-3">
-              <div className="rounded-2xl border border-border bg-card p-4">
-                <Package size={19} className="text-yellow-500" />
-                <p className="mt-3 text-lg font-bold text-foreground">
-                  {equipment.quantity}
-                </p>
-                <p className="text-xs text-muted-foreground">Total stock</p>
-              </div>
-
-              <div className="rounded-2xl border border-border bg-card p-4">
-                <ShieldCheck size={19} className="text-yellow-500" />
-                <p className="mt-3 text-sm font-bold text-foreground">
-                  {getConditionLabel(equipment.condition)}
-                </p>
-                <p className="text-xs text-muted-foreground">Condition</p>
-              </div>
-
-              <div className="rounded-2xl border border-border bg-card p-4">
-                <Truck size={19} className="text-yellow-500" />
-                <p className="mt-3 text-sm font-bold text-foreground">Rental</p>
-                <p className="text-xs text-muted-foreground">Available</p>
-              </div>
-            </div>
+            <span className="flex items-center gap-1 text-xs text-green-600 dark:text-green-400">
+              <CheckCircle2 size={13} />
+              Available for rental
+            </span>
           </div>
 
-          {/* Equipment Information */}
-          <div>
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="rounded-full bg-yellow-400/15 px-3 py-1.5 text-xs font-bold text-yellow-600 dark:text-yellow-400">
-                {equipment.category}
+          <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
+            {equipment.name}
+          </h1>
+
+          <p className="mt-2 flex items-center gap-1.5 text-sm text-muted-foreground">
+            <MapPin size={15} className="text-yellow-500" />
+            {equipment.location}
+          </p>
+        </div>
+
+        {/* Main showcase */}
+        <div className="grid items-start gap-5 lg:grid-cols-[1.55fr_0.85fr]">
+          {/* Image */}
+          <div className="group relative overflow-hidden rounded-2xl bg-muted">
+            {equipment.image ? (
+              <img
+                src={equipment.image}
+                alt={equipment.name}
+                className="aspect-[16/10] w-full object-cover transition duration-500 group-hover:scale-[1.02]"
+              />
+            ) : (
+              <div className="flex aspect-[16/10] items-center justify-center text-muted-foreground">
+                <Package size={60} />
+              </div>
+            )}
+
+            <div className="absolute bottom-4 left-4 flex flex-wrap gap-2">
+              <span className="rounded-lg bg-black/70 px-3 py-2 text-xs font-medium text-white backdrop-blur">
+                {equipment.quantity} units available
               </span>
 
-              <span className="rounded-full border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground">
+              <span className="rounded-lg bg-white/90 px-3 py-2 text-xs font-medium text-gray-900 backdrop-blur">
                 {getConditionLabel(equipment.condition)}
               </span>
             </div>
-
-            <h1 className="mt-5 text-3xl font-extrabold tracking-tight text-foreground sm:text-4xl lg:text-[42px] lg:leading-tight">
-              {equipment.name}
-            </h1>
-
-            <div className="mt-4 flex items-center gap-2 text-sm text-muted-foreground">
-              <MapPin size={17} className="shrink-0 text-yellow-500" />
-              {equipment.location}
-            </div>
-
-            {/* Price */}
-            <div className="mt-7 rounded-2xl border border-border bg-card p-5 sm:p-6">
-              <p className="text-sm text-muted-foreground">Rental price</p>
-
-              <div className="mt-2 flex flex-wrap items-baseline gap-2">
-                <span className="text-3xl font-extrabold tracking-tight text-foreground sm:text-4xl">
-                  {formatPrice(equipment.price)}
-                </span>
-
-                <span className="text-sm font-medium text-muted-foreground">
-                  / {getRentalLabel(equipment.rentalType)}
-                </span>
-              </div>
-
-              <p className="mt-2 text-xs text-muted-foreground">
-                Final rental amount will be calculated based on your selected
-                dates and quantity.
-              </p>
-
-              <div className="mt-5 flex flex-col gap-3 sm:flex-row">
-                <button
-                  type="button"
-                  onClick={openBooking}
-                  disabled={equipment.quantity < 1}
-                  className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-yellow-400 px-5 py-3.5 font-bold text-black transition hover:bg-yellow-300 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  <CalendarDays size={19} />
-                  Book Now
-                </button>
-
-                <button
-                  type="button"
-                  onClick={handleFavorite}
-                  disabled={favoriteLoading}
-                  className={`flex items-center justify-center gap-2 rounded-xl border px-5 py-3.5 font-semibold transition ${
-                    isFavorite
-                      ? "border-red-500/30 bg-red-500/10 text-red-500"
-                      : "border-border bg-background text-foreground hover:border-yellow-400"
-                  }`}
-                >
-                  <Heart
-                    size={18}
-                    className={isFavorite ? "fill-current" : ""}
-                  />
-                  {isFavorite ? "Saved" : "Favorite"}
-                </button>
-              </div>
-            </div>
-
-            {/* Owner */}
-            <div className="mt-6 rounded-2xl border border-border bg-card p-5">
-              <div className="flex items-center gap-4">
-                <div className="flex size-12 shrink-0 items-center justify-center rounded-full bg-yellow-400/15 text-yellow-600 dark:text-yellow-400">
-                  <UserRound size={23} />
-                </div>
-
-                <div className="min-w-0 flex-1">
-                  <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                    Listed by
-                  </p>
-
-                  <p className="mt-1 truncate font-semibold text-foreground">
-                    Equipment Owner
-                  </p>
-
-                  <p className="mt-1 flex items-center gap-1.5 truncate text-xs text-muted-foreground">
-                    <Mail size={13} />
-                    {equipment.ownerEmail}
-                  </p>
-                </div>
-
-                <ShieldCheck size={22} className="shrink-0 text-green-500" />
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Details Sections */}
-        <div className="mt-14 grid gap-8 lg:grid-cols-[1fr_320px]">
-          <div className="space-y-8">
-            {/* Description */}
-            <section className="rounded-3xl border border-border bg-card p-6 sm:p-8">
-              <div className="flex items-center gap-3">
-                <div className="flex size-10 items-center justify-center rounded-xl bg-yellow-400/15 text-yellow-600 dark:text-yellow-400">
-                  <Package size={20} />
-                </div>
-
-                <h2 className="text-xl font-bold text-foreground">
-                  Equipment Overview
-                </h2>
-              </div>
-
-              <p className="mt-5 whitespace-pre-line text-sm leading-8 text-muted-foreground">
-                {equipment.description || "No description provided."}
-              </p>
-
-              {(equipment.brand || equipment.model) && (
-                <div className="mt-6 grid gap-4 border-t border-border pt-5 sm:grid-cols-2">
-                  {equipment.brand && (
-                    <div>
-                      <p className="text-xs text-muted-foreground">Brand</p>
-                      <p className="mt-1 font-semibold text-foreground">
-                        {equipment.brand}
-                      </p>
-                    </div>
-                  )}
-
-                  {equipment.model && (
-                    <div>
-                      <p className="text-xs text-muted-foreground">Model</p>
-                      <p className="mt-1 font-semibold text-foreground">
-                        {equipment.model}
-                      </p>
-                    </div>
-                  )}
-                </div>
-              )}
-            </section>
-
-            {/* Rental terms */}
-            <section className="rounded-3xl border border-border bg-card p-6 sm:p-8">
-              <div className="flex items-center gap-3">
-                <div className="flex size-10 items-center justify-center rounded-xl bg-yellow-400/15 text-yellow-600 dark:text-yellow-400">
-                  <ShieldCheck size={20} />
-                </div>
-
-                <h2 className="text-xl font-bold text-foreground">
-                  Rental Terms & Conditions
-                </h2>
-              </div>
-
-              <p className="mt-5 whitespace-pre-line text-sm leading-8 text-muted-foreground">
-                {equipment.terms || "No additional rental terms provided."}
-              </p>
-            </section>
           </div>
 
-          {/* Quick Summary */}
-          <aside className="h-fit rounded-3xl border border-border bg-card p-6 lg:sticky lg:top-24">
-            <h3 className="text-lg font-bold text-foreground">
-              Rental Summary
-            </h3>
+          {/* Rental panel */}
+          <div className="rounded-2xl border border-border bg-card p-5 sm:p-6">
+            <p className="text-xs font-medium uppercase tracking-[0.15em] text-muted-foreground">
+              Rental price
+            </p>
 
-            <div className="mt-5 space-y-4">
-              <div className="flex items-center justify-between gap-3 text-sm">
-                <span className="text-muted-foreground">Category</span>
-                <span className="font-semibold text-foreground">
-                  {equipment.category}
-                </span>
-              </div>
+            <div className="mt-2 flex flex-wrap items-baseline gap-2">
+              <span className="text-3xl font-bold tracking-tight text-foreground">
+                {formatPrice(equipment.price)}
+              </span>
 
-              <div className="flex items-center justify-between gap-3 text-sm">
-                <span className="text-muted-foreground">Rental type</span>
-                <span className="font-semibold capitalize text-foreground">
-                  {equipment.rentalType}
-                </span>
-              </div>
-
-              <div className="flex items-center justify-between gap-3 text-sm">
-                <span className="text-muted-foreground">Quantity</span>
-                <span className="font-semibold text-foreground">
-                  {equipment.quantity} units
-                </span>
-              </div>
-
-              <div className="flex items-center justify-between gap-3 text-sm">
-                <span className="text-muted-foreground">Condition</span>
-                <span className="font-semibold text-foreground">
-                  {getConditionLabel(equipment.condition)}
-                </span>
-              </div>
-
-              <div className="flex items-center justify-between gap-3 text-sm">
-                <span className="text-muted-foreground">Location</span>
-                <span className="max-w-[150px] truncate text-right font-semibold text-foreground">
-                  {equipment.location}
-                </span>
-              </div>
+              <span className="text-sm text-muted-foreground">
+                / {getRentalLabel(equipment.rentalType).toLowerCase()}
+              </span>
             </div>
 
-            <div className="my-6 border-t border-border" />
-
-            <div className="flex items-center gap-2 text-xs leading-5 text-muted-foreground">
-              <ShieldCheck size={17} className="shrink-0 text-green-500" />
-              Secure payment through Stripe Checkout.
-            </div>
+            <p className="mt-2 text-xs text-muted-foreground">
+              Price depends on rental duration and quantity.
+            </p>
 
             <button
               type="button"
               onClick={openBooking}
               disabled={equipment.quantity < 1}
-              className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-yellow-400 px-5 py-3.5 font-bold text-black transition hover:bg-yellow-300 disabled:cursor-not-allowed disabled:opacity-50"
+              className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-yellow-400 px-4 py-3 text-sm font-bold text-black transition hover:bg-yellow-300 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              Rent This Equipment
-              <ChevronRight size={18} />
+              <CalendarDays size={17} />
+              Book this equipment
             </button>
+
+            <div className="mt-3 flex items-center justify-center gap-1.5 text-xs text-muted-foreground">
+              <ShieldCheck size={14} className="text-green-500" />
+              Secure Stripe checkout
+            </div>
+
+            <div className="my-5 border-t border-border" />
+
+            {/* Quick info */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between gap-3">
+                <span className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Package size={16} />
+                  Available quantity
+                </span>
+                <span className="text-sm font-semibold text-foreground">
+                  {equipment.quantity} units
+                </span>
+              </div>
+
+              <div className="flex items-center justify-between gap-3">
+                <span className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <CalendarDays size={16} />
+                  Rental period
+                </span>
+                <span className="text-sm font-semibold capitalize text-foreground">
+                  {equipment.rentalType}
+                </span>
+              </div>
+
+              <div className="flex items-center justify-between gap-3">
+                <span className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <ShieldCheck size={16} />
+                  Condition
+                </span>
+                <span className="text-sm font-semibold text-foreground">
+                  {getConditionLabel(equipment.condition)}
+                </span>
+              </div>
+            </div>
+
+            <div className="mt-5 rounded-xl bg-muted/50 p-3.5">
+              <div className="flex items-start gap-2.5">
+                <ShieldCheck
+                  size={17}
+                  className="mt-0.5 shrink-0 text-green-500"
+                />
+                <div>
+                  <p className="text-xs font-semibold text-foreground">
+                    Protected checkout
+                  </p>
+                  <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                    Payment is processed securely through Stripe.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Information */}
+        <div className="mt-7 grid gap-6 lg:grid-cols-[1fr_300px]">
+          <div className="min-w-0 space-y-6">
+            {/* Description */}
+            <section className="border-b border-border pb-6">
+              <h2 className="text-lg font-semibold text-foreground">
+                About this equipment
+              </h2>
+
+              <p className="mt-3 whitespace-pre-line text-sm leading-7 text-muted-foreground">
+                {equipment.description || "No description provided."}
+              </p>
+            </section>
+
+            {/* Specifications */}
+            <section className="border-b border-border pb-6">
+              <h2 className="text-lg font-semibold text-foreground">
+                Specifications
+              </h2>
+
+              <div className="mt-4 grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-3">
+                {[
+                  { label: "Category", value: equipment.category },
+                  { label: "Brand", value: equipment.brand || "Not specified" },
+                  { label: "Model", value: equipment.model || "Not specified" },
+                  {
+                    label: "Condition",
+                    value: getConditionLabel(equipment.condition),
+                  },
+                  {
+                    label: "Rental type",
+                    value: equipment.rentalType,
+                  },
+                  {
+                    label: "Quantity",
+                    value: `${equipment.quantity} units`,
+                  },
+                  {
+                    label: "Rental price",
+                    value: `${formatPrice(equipment.price)} / ${getRentalLabel(equipment.rentalType)}`,
+                  },
+                  {
+                    label: "Location",
+                    value: equipment.location,
+                  },
+                ].map((item) => (
+                  <div key={item.label} className="min-w-0">
+                    <p className="text-xs text-muted-foreground">
+                      {item.label}
+                    </p>
+                    <p className="mt-1 break-words text-sm font-medium capitalize text-foreground">
+                      {item.value}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </section>
+
+            {/* Rental terms */}
+            <section>
+              <h2 className="text-lg font-semibold text-foreground">
+                Rental terms & conditions
+              </h2>
+
+              <p className="mt-3 whitespace-pre-line text-sm leading-7 text-muted-foreground">
+                {equipment.terms || "No additional rental terms provided."}
+              </p>
+            </section>
+          </div>
+
+          {/* Owner */}
+          <aside className="h-fit rounded-2xl border border-border bg-card p-4 sm:p-5">
+            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+              Listed by
+            </p>
+
+            <div className="mt-3 flex items-center gap-3">
+              <div className="flex size-11 shrink-0 items-center justify-center rounded-full bg-yellow-400/15 text-yellow-700 dark:text-yellow-400">
+                <UserRound size={20} />
+              </div>
+
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-foreground">
+                  Equipment Owner
+                </p>
+                <p className="mt-1 break-all text-xs text-muted-foreground">
+                  {equipment.ownerEmail}
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-4 flex items-center gap-2 border-t border-border pt-4 text-xs text-muted-foreground">
+              <ShieldCheck size={15} className="text-green-500" />
+              Equipment listing
+            </div>
           </aside>
         </div>
       </div>
@@ -749,7 +711,7 @@ export default function EquipmentDetailsClient({ id }: { id: string }) {
       {/* Booking Modal */}
       {bookingOpen && (
         <div
-          className="fixed inset-0 z-[100] flex items-center justify-center overflow-y-auto bg-black/60 p-3 backdrop-blur-sm sm:p-5"
+          className="fixed inset-0 z-[100] flex items-center justify-center overflow-y-auto bg-black/65 px-3 py-5 backdrop-blur-md sm:px-5"
           onMouseDown={(event) => {
             if (event.target === event.currentTarget && !bookingLoading) {
               setBookingOpen(false);
@@ -760,141 +722,163 @@ export default function EquipmentDetailsClient({ id }: { id: string }) {
             role="dialog"
             aria-modal="true"
             aria-labelledby="booking-title"
-            className="my-auto w-full max-w-lg overflow-hidden rounded-3xl border border-border bg-background shadow-2xl"
+            className="my-auto w-full max-w-xl overflow-hidden rounded-2xl border border-border bg-background shadow-2xl"
           >
-            {/* Modal Header */}
-            <div className="flex items-center justify-between border-b border-border px-5 py-4 sm:px-6">
+            {/* Modal header */}
+            <div className="flex items-start justify-between border-b border-border px-5 py-4 sm:px-6">
               <div>
-                <h2
-                  id="booking-title"
-                  className="text-xl font-bold text-foreground"
-                >
-                  Book Equipment
-                </h2>
+                <div className="flex items-center gap-2">
+                  <div className="flex size-9 items-center justify-center rounded-xl bg-yellow-400/15 text-yellow-600 dark:text-yellow-400">
+                    <CalendarDays size={18} />
+                  </div>
 
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Complete your rental details
-                </p>
+                  <div>
+                    <h2
+                      id="booking-title"
+                      className="text-lg font-bold text-foreground"
+                    >
+                      Reserve equipment
+                    </h2>
+                    <p className="text-xs text-muted-foreground">
+                      Enter your rental details
+                    </p>
+                  </div>
+                </div>
               </div>
 
               <button
                 type="button"
                 onClick={() => setBookingOpen(false)}
                 disabled={bookingLoading}
-                className="flex size-9 items-center justify-center rounded-full bg-muted text-muted-foreground transition hover:text-foreground disabled:opacity-50"
                 aria-label="Close booking modal"
+                className="flex size-9 items-center justify-center rounded-lg text-muted-foreground transition hover:bg-muted hover:text-foreground disabled:opacity-50"
               >
-                <X size={19} />
+                <X size={18} />
               </button>
             </div>
 
-            <form onSubmit={handleBooking} className="space-y-4 p-5 sm:p-6">
-              {/* Equipment preview */}
-              <div className="flex items-center gap-3 rounded-2xl bg-muted/60 p-3">
+            <form onSubmit={handleBooking} className="space-y-5 p-5 sm:p-6">
+              {/* Item summary */}
+              <div className="flex items-center gap-3 rounded-xl bg-muted/50 p-3">
                 {equipment.image ? (
                   <img
                     src={equipment.image}
                     alt={equipment.name}
-                    className="size-16 rounded-xl object-cover"
+                    className="size-[68px] shrink-0 rounded-lg object-cover"
                   />
                 ) : (
-                  <div className="flex size-16 shrink-0 items-center justify-center rounded-xl bg-background text-muted-foreground">
-                    <Package size={25} />
+                  <div className="flex size-[68px] shrink-0 items-center justify-center rounded-lg bg-background text-muted-foreground">
+                    <Package size={24} />
                   </div>
                 )}
 
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-bold text-foreground">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold text-foreground">
                     {equipment.name}
                   </p>
 
                   <p className="mt-1 text-xs text-muted-foreground">
                     {formatPrice(equipment.price)} /{" "}
-                    {getRentalLabel(equipment.rentalType)}
+                    {getRentalLabel(equipment.rentalType).toLowerCase()}
+                  </p>
+
+                  <p className="mt-1 text-xs text-green-600 dark:text-green-400">
+                    {equipment.quantity} units available
                   </p>
                 </div>
               </div>
 
-              {/* Rental Dates */}
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label
-                    htmlFor="startDate"
-                    className="mb-2 block text-xs font-semibold text-foreground"
-                  >
-                    Start Date & Time
-                  </label>
-
-                  <input
-                    id="startDate"
-                    type="datetime-local"
-                    required
-                    min={getLocalDateTimeValue()}
-                    value={startDate}
-                    onChange={(event) => {
-                      setStartDate(event.target.value);
-
-                      if (
-                        endDate &&
-                        new Date(endDate) <= new Date(event.target.value)
-                      ) {
-                        setEndDate("");
-                      }
-                    }}
-                    className="w-full min-w-0 rounded-xl border border-border bg-background px-3 py-3 text-xs text-foreground outline-none transition focus:border-yellow-400 focus:ring-2 focus:ring-yellow-400/20"
-                  />
+              {/* Date selection */}
+              <div>
+                <div className="mb-3">
+                  <p className="text-sm font-semibold text-foreground">
+                    Rental period
+                  </p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Select when you need the equipment
+                  </p>
                 </div>
 
-                <div>
-                  <label
-                    htmlFor="endDate"
-                    className="mb-2 block text-xs font-semibold text-foreground"
-                  >
-                    End Date & Time
-                  </label>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div>
+                    <label
+                      htmlFor="startDate"
+                      className="mb-1.5 block text-xs font-medium text-foreground"
+                    >
+                      Start date & time
+                    </label>
 
-                  <input
-                    id="endDate"
-                    type="datetime-local"
-                    required
-                    min={startDate || getLocalDateTimeValue()}
-                    value={endDate}
-                    onChange={(event) => setEndDate(event.target.value)}
-                    className="w-full min-w-0 rounded-xl border border-border bg-background px-3 py-3 text-xs text-foreground outline-none transition focus:border-yellow-400 focus:ring-2 focus:ring-yellow-400/20"
-                  />
+                    <input
+                      id="startDate"
+                      type="datetime-local"
+                      required
+                      min={getLocalDateTimeValue()}
+                      value={startDate}
+                      onChange={(event) => {
+                        setStartDate(event.target.value);
+
+                        if (
+                          endDate &&
+                          new Date(endDate) <= new Date(event.target.value)
+                        ) {
+                          setEndDate("");
+                        }
+                      }}
+                      className="w-full min-w-0 rounded-lg border border-border bg-background px-3 py-2.5 text-xs text-foreground outline-none transition focus:border-yellow-400 focus:ring-2 focus:ring-yellow-400/20"
+                    />
+                  </div>
+
+                  <div>
+                    <label
+                      htmlFor="endDate"
+                      className="mb-1.5 block text-xs font-medium text-foreground"
+                    >
+                      End date & time
+                    </label>
+
+                    <input
+                      id="endDate"
+                      type="datetime-local"
+                      required
+                      min={startDate || getLocalDateTimeValue()}
+                      value={endDate}
+                      onChange={(event) => setEndDate(event.target.value)}
+                      className="w-full min-w-0 rounded-lg border border-border bg-background px-3 py-2.5 text-xs text-foreground outline-none transition focus:border-yellow-400 focus:ring-2 focus:ring-yellow-400/20"
+                    />
+                  </div>
                 </div>
               </div>
 
               {/* Quantity */}
               <div>
-                <div className="mb-2 flex items-center justify-between">
-                  <label className="text-xs font-semibold text-foreground">
-                    Required Quantity
-                  </label>
+                <label className="mb-2 block text-xs font-semibold text-foreground">
+                  Required quantity
+                </label>
 
-                  <span className="text-xs text-muted-foreground">
-                    {equipment.quantity} available in stock
-                  </span>
-                </div>
+                <div className="flex items-center justify-between rounded-xl border border-border px-3 py-2.5">
+                  <div>
+                    <p className="text-sm font-medium text-foreground">
+                      Equipment units
+                    </p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Maximum {equipment.quantity} units
+                    </p>
+                  </div>
 
-                <div className="flex h-12 items-center justify-between rounded-xl border border-border px-3">
-                  <span className="text-sm text-muted-foreground">
-                    Equipment units
-                  </span>
-
-                  <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-3">
                     <button
                       type="button"
                       onClick={() =>
                         setQuantity((value) => Math.max(1, value - 1))
                       }
                       disabled={quantity <= 1}
-                      className="flex size-8 items-center justify-center rounded-lg bg-muted text-foreground transition hover:bg-yellow-400 hover:text-black disabled:opacity-40"
+                      aria-label="Decrease quantity"
+                      className="flex size-8 items-center justify-center rounded-lg border border-border transition hover:bg-muted disabled:opacity-40"
                     >
-                      <Minus size={15} />
+                      <Minus size={14} />
                     </button>
 
-                    <span className="min-w-5 text-center text-sm font-bold text-foreground">
+                    <span className="w-5 text-center text-sm font-bold text-foreground">
                       {quantity}
                     </span>
 
@@ -906,61 +890,63 @@ export default function EquipmentDetailsClient({ id }: { id: string }) {
                         )
                       }
                       disabled={quantity >= equipment.quantity}
-                      className="flex size-8 items-center justify-center rounded-lg bg-muted text-foreground transition hover:bg-yellow-400 hover:text-black disabled:opacity-40"
+                      aria-label="Increase quantity"
+                      className="flex size-8 items-center justify-center rounded-lg border border-border transition hover:bg-muted disabled:opacity-40"
                     >
-                      <Plus size={15} />
+                      <Plus size={14} />
                     </button>
                   </div>
                 </div>
               </div>
 
-              {/* Contact */}
-              <div>
-                <label
-                  htmlFor="contactNumber"
-                  className="mb-2 block text-xs font-semibold text-foreground"
-                >
-                  Contact Number
-                </label>
+              {/* Contact information */}
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <label
+                    htmlFor="contactNumber"
+                    className="mb-1.5 block text-xs font-semibold text-foreground"
+                  >
+                    Contact number
+                  </label>
 
-                <input
-                  id="contactNumber"
-                  type="tel"
-                  required
-                  value={contactNumber}
-                  onChange={(event) => setContactNumber(event.target.value)}
-                  placeholder="Enter your phone number"
-                  className="w-full rounded-xl border border-border bg-background px-4 py-3 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:border-yellow-400 focus:ring-2 focus:ring-yellow-400/20"
-                />
+                  <input
+                    id="contactNumber"
+                    type="tel"
+                    required
+                    value={contactNumber}
+                    onChange={(event) => setContactNumber(event.target.value)}
+                    placeholder="Your phone number"
+                    className="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:border-yellow-400 focus:ring-2 focus:ring-yellow-400/20"
+                  />
+                </div>
+
+                <div>
+                  <label
+                    htmlFor="deliveryAddress"
+                    className="mb-1.5 block text-xs font-semibold text-foreground"
+                  >
+                    Delivery address
+                  </label>
+
+                  <input
+                    id="deliveryAddress"
+                    type="text"
+                    required
+                    value={deliveryAddress}
+                    onChange={(event) => setDeliveryAddress(event.target.value)}
+                    placeholder="Your delivery address"
+                    className="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:border-yellow-400 focus:ring-2 focus:ring-yellow-400/20"
+                  />
+                </div>
               </div>
 
-              {/* Address */}
-              <div>
-                <label
-                  htmlFor="deliveryAddress"
-                  className="mb-2 block text-xs font-semibold text-foreground"
-                >
-                  Delivery Address
-                </label>
-
-                <input
-                  id="deliveryAddress"
-                  type="text"
-                  required
-                  value={deliveryAddress}
-                  onChange={(event) => setDeliveryAddress(event.target.value)}
-                  placeholder="Enter your delivery address"
-                  className="w-full rounded-xl border border-border bg-background px-4 py-3 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:border-yellow-400 focus:ring-2 focus:ring-yellow-400/20"
-                />
-              </div>
-
-              {/* Optional notes */}
+              {/* Notes */}
               <div>
                 <label
                   htmlFor="notes"
-                  className="mb-2 block text-xs font-semibold text-foreground"
+                  className="mb-1.5 block text-xs font-semibold text-foreground"
                 >
-                  Additional Notes{" "}
+                  Additional notes{" "}
                   <span className="font-normal text-muted-foreground">
                     (Optional)
                   </span>
@@ -971,58 +957,63 @@ export default function EquipmentDetailsClient({ id }: { id: string }) {
                   rows={2}
                   value={notes}
                   onChange={(event) => setNotes(event.target.value)}
-                  placeholder="Any special instructions..."
-                  className="w-full resize-none rounded-xl border border-border bg-background px-4 py-3 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:border-yellow-400 focus:ring-2 focus:ring-yellow-400/20"
+                  placeholder="Add special instructions..."
+                  className="w-full resize-none rounded-lg border border-border bg-background px-3 py-2.5 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:border-yellow-400 focus:ring-2 focus:ring-yellow-400/20"
                 />
               </div>
 
-              {/* Price info */}
-              <div className="rounded-xl border border-yellow-400/30 bg-yellow-400/10 p-3">
-                <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
-                  <CreditCard
-                    size={17}
-                    className="text-yellow-600 dark:text-yellow-400"
-                  />
-                  Secure Stripe Checkout
-                </div>
+              {/* Payment info */}
+              <div className="flex items-start gap-3 rounded-xl border border-yellow-400/25 bg-yellow-400/5 p-3.5">
+                <CreditCard
+                  size={18}
+                  className="mt-0.5 shrink-0 text-yellow-600 dark:text-yellow-400"
+                />
 
-                <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                  Your rental duration and total amount will be calculated by
-                  the server. You will be redirected to Stripe to complete your
-                  payment securely.
-                </p>
+                <div>
+                  <p className="text-xs font-semibold text-foreground">
+                    Secure payment with Stripe
+                  </p>
+
+                  <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                    Total rental cost will be calculated and availability
+                    validated before redirecting to checkout.
+                  </p>
+                </div>
               </div>
 
+              {/* Error */}
               {bookingError && (
-                <div className="flex items-start gap-2 rounded-xl border border-red-500/20 bg-red-500/10 p-3 text-xs leading-5 text-red-600 dark:text-red-400">
+                <div className="flex items-start gap-2 rounded-lg border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-600 dark:text-red-400">
                   <AlertCircle size={16} className="mt-0.5 shrink-0" />
-                  {bookingError}
+                  <p>{bookingError}</p>
                 </div>
               )}
 
               {/* Submit */}
-              <button
-                type="submit"
-                disabled={bookingLoading || equipment.quantity < 1}
-                className="flex w-full items-center justify-center gap-2 rounded-xl bg-yellow-400 px-5 py-3.5 font-bold text-black transition hover:bg-yellow-300 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {bookingLoading ? (
-                  <>
-                    <Loader2 size={18} className="animate-spin" />
-                    Preparing Checkout...
-                  </>
-                ) : (
-                  <>
-                    Continue to Payment
-                    <ChevronRight size={18} />
-                  </>
-                )}
-              </button>
+              <div className="border-t border-border pt-4">
+                <button
+                  type="submit"
+                  disabled={bookingLoading || equipment.quantity < 1}
+                  className="flex w-full items-center justify-center gap-2 rounded-xl bg-yellow-400 px-4 py-3 text-sm font-bold text-black transition hover:bg-yellow-300 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {bookingLoading ? (
+                    <>
+                      <Loader2 size={17} className="animate-spin" />
+                      Preparing checkout...
+                    </>
+                  ) : (
+                    <>
+                      Continue to payment
+                      <ChevronRight size={17} />
+                    </>
+                  )}
+                </button>
 
-              <p className="text-center text-[11px] text-muted-foreground">
-                Your booking will be confirmed after successful payment and
-                server verification.
-              </p>
+                <p className="mt-3 text-center text-[11px] leading-5 text-muted-foreground">
+                  Booking confirmation depends on successful payment and server
+                  verification.
+                </p>
+              </div>
             </form>
           </div>
         </div>
