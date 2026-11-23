@@ -1,13 +1,16 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
   CalendarDays,
-  CheckCircle2,
-  Clock3,
   Package,
-  Wallet,
   ArrowUpRight,
   ArrowRight,
+  Loader2,
 } from "lucide-react";
+
+import { authClient } from "@/lib/auth-client";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
@@ -22,118 +25,113 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
-const rentals = [
-  {
-    id: "RNT-1001",
-    equipment: "Professional DSLR Camera",
-    category: "Photography",
-    image:
-      "https://images.unsplash.com/photo-1516035069371-29a1b244cc32?w=400&q=80",
-    startDate: "Nov 22, 2026",
-    endDate: "Nov 25, 2026",
-    bookingDate: "Nov 18, 2026",
-    amount: 4500,
-    paymentStatus: "Paid",
-    bookingStatus: "Confirmed",
-  },
-  {
-    id: "RNT-1002",
-    equipment: "Industrial Generator",
-    category: "Construction",
-    image:
-      "https://images.unsplash.com/photo-1473341304170-971dccb5ac1e?w=400&q=80",
-    startDate: "Nov 24, 2026",
-    endDate: "Nov 27, 2026",
-    bookingDate: "Nov 19, 2026",
-    amount: 7200,
-    paymentStatus: "Pending",
-    bookingStatus: "Pending",
-  },
-  {
-    id: "RNT-1003",
-    equipment: "Excavator Machine",
-    category: "Construction",
-    image:
-      "https://images.unsplash.com/photo-1580901368919-7739efb0f5e0?w=400&q=80",
-    startDate: "Oct 10, 2026",
-    endDate: "Oct 15, 2026",
-    bookingDate: "Oct 05, 2026",
-    amount: 15000,
-    paymentStatus: "Paid",
-    bookingStatus: "Completed",
-  },
-  {
-    id: "RNT-1004",
-    equipment: "Event Sound System",
-    category: "Event Equipment",
-    image:
-      "https://images.unsplash.com/photo-1506157786151-b8491531f063?w=400&q=80",
-    startDate: "Oct 20, 2026",
-    endDate: "Oct 22, 2026",
-    bookingDate: "Oct 16, 2026",
-    amount: 3500,
-    paymentStatus: "Paid",
-    bookingStatus: "Cancelled",
-  },
-];
+const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
-const summary = [
-  {
-    title: "Total Rentals",
-    value: "04",
-    description: "All your bookings",
-    icon: Package,
-    iconStyle: "bg-yellow-400/15 text-yellow-600 dark:text-yellow-400",
-  },
-  {
-    title: "Active Rentals",
-    value: "01",
-    description: "Currently ongoing",
-    icon: Clock3,
-    iconStyle: "bg-blue-500/10 text-blue-600 dark:text-blue-400",
-  },
-  {
-    title: "Completed",
-    value: "01",
-    description: "Successfully completed",
-    icon: CheckCircle2,
-    iconStyle: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
-  },
-  {
-    title: "Total Spent",
-    value: "৳30,200",
-    description: "Across all bookings",
-    icon: Wallet,
-    iconStyle: "bg-violet-500/10 text-violet-600 dark:text-violet-400",
-  },
-];
+interface Booking {
+  _id: string;
+  equipmentId: string;
+  equipmentName: string;
+  startDate: string;
+  endDate: string;
+  createdAt: string;
+  totalAmount: number;
+  paymentStatus: string;
+  status: string;
+}
 
-function getBookingBadge(status: string) {
-  switch (status) {
-    case "Confirmed":
+function formatDate(date: string) {
+  if (!date) return "N/A";
+
+  return new Intl.DateTimeFormat("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  }).format(new Date(date));
+}
+
+function formatAmount(amount: number) {
+  return `৳${Number(amount || 0).toLocaleString("en-BD")}`;
+}
+
+function getStatusStyle(status: string) {
+  switch (status?.toLowerCase()) {
+    case "confirmed":
+    case "paid":
       return "border-emerald-500/20 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400";
 
-    case "Completed":
+    case "completed":
       return "border-blue-500/20 bg-blue-500/10 text-blue-600 dark:text-blue-400";
 
-    case "Pending":
+    case "pending":
+    case "unpaid":
       return "border-yellow-500/20 bg-yellow-500/10 text-yellow-700 dark:text-yellow-400";
 
-    case "Cancelled":
+    case "cancelled":
       return "border-red-500/20 bg-red-500/10 text-red-600 dark:text-red-400";
+
+    case "payment_review":
+      return "border-orange-500/20 bg-orange-500/10 text-orange-600 dark:text-orange-400";
 
     default:
       return "border-border bg-muted text-muted-foreground";
   }
 }
 
-function getPaymentBadge(status: string) {
-  return status === "Paid"
-    ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
-    : "border-yellow-500/20 bg-yellow-500/10 text-yellow-700 dark:text-yellow-400";
+function formatStatus(status: string) {
+  if (!status) return "Unknown";
+
+  return status
+    .replaceAll("_", " ")
+    .replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
 export default function MyRentalsPage() {
+  const [bookings, setBookings] = useState<Booking[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    const fetchMyBookings = async () => {
+      try {
+        setLoading(true);
+        setError("");
+
+        const { data, error: tokenError } = await authClient.token();
+
+        if (tokenError || !data?.token) {
+          throw new Error("Please log in to view your rentals.");
+        }
+
+        const response = await fetch(`${API_URL}/bookings/my-bookings`, {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${data.token}`,
+            "Content-Type": "application/json",
+          },
+          cache: "no-store",
+        });
+
+        const result = await response.json();
+
+        if (!response.ok || !result.success) {
+          throw new Error(result.message || "Failed to load your rentals.");
+        }
+
+        setBookings(result.data || []);
+      } catch (err) {
+        setError(
+          err instanceof Error
+            ? err.message
+            : "Something went wrong. Please try again.",
+        );
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchMyBookings();
+  }, []);
+
   return (
     <div className="mx-auto w-full space-y-7">
       {/* Page Heading */}
@@ -151,8 +149,8 @@ export default function MyRentalsPage() {
           </h2>
 
           <p className="mt-2 max-w-xl text-sm leading-relaxed text-muted-foreground">
-            Keep track of your bookings, rental dates and payment details all in
-            one place.
+            Track all your equipment bookings, rental dates and payment details
+            in one place.
           </p>
         </div>
 
@@ -166,50 +164,14 @@ export default function MyRentalsPage() {
         </Link>
       </div>
 
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {summary.map((item) => {
-          const Icon = item.icon;
-
-          return (
-            <Card
-              key={item.title}
-              className="group rounded-2xl border-border/70 bg-card shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-md"
-            >
-              <CardContent className="flex items-center justify-between gap-4 p-5 sm:p-6">
-                <div className="min-w-0">
-                  <p className="text-sm font-medium text-muted-foreground">
-                    {item.title}
-                  </p>
-
-                  <h3 className="mt-3 text-2xl font-bold tracking-tight sm:text-3xl">
-                    {item.value}
-                  </h3>
-
-                  <p className="mt-1.5 text-xs text-muted-foreground">
-                    {item.description}
-                  </p>
-                </div>
-
-                <div
-                  className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ${item.iconStyle} transition-transform duration-300 group-hover:scale-110`}
-                >
-                  <Icon size={22} />
-                </div>
-              </CardContent>
-            </Card>
-          );
-        })}
-      </div>
-
       {/* Rental History */}
       <Card className="overflow-hidden rounded-2xl border-border/70 shadow-sm">
-        <CardHeader className="flex flex-col gap-4 border-b border-border/60 px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+        <CardHeader className="flex flex-col gap-3 border-b border-border/60 px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
           <div>
             <CardTitle className="text-lg font-bold">Rental History</CardTitle>
 
             <p className="mt-1.5 text-sm text-muted-foreground">
-              Review all your recent equipment bookings.
+              Review all your equipment bookings.
             </p>
           </div>
 
@@ -217,151 +179,145 @@ export default function MyRentalsPage() {
             variant="secondary"
             className="w-fit rounded-full px-3 py-1 text-xs font-semibold"
           >
-            {rentals.length} Bookings
+            {bookings.length} Bookings
           </Badge>
         </CardHeader>
 
         <CardContent className="p-0">
-          <div className="w-full overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow className="border-border/60 bg-muted/40 hover:bg-muted/40">
-                  <TableHead className="min-w-[260px] px-5 py-4 sm:px-6">
-                    Equipment
-                  </TableHead>
+          {loading ? (
+            <div className="flex min-h-[250px] flex-col items-center justify-center gap-3">
+              <Loader2 className="h-8 w-8 animate-spin text-yellow-500" />
+              <p className="text-sm text-muted-foreground">
+                Loading your rentals...
+              </p>
+            </div>
+          ) : error ? (
+            <div className="flex min-h-[250px] flex-col items-center justify-center gap-3 px-5 text-center">
+              <p className="text-sm font-medium text-red-500">{error}</p>
+              <button
+                onClick={() => window.location.reload()}
+                className="rounded-lg bg-yellow-400 px-4 py-2 text-sm font-semibold text-black transition hover:bg-yellow-500"
+              >
+                Try Again
+              </button>
+            </div>
+          ) : bookings.length === 0 ? (
+            <div className="flex min-h-[280px] flex-col items-center justify-center px-5 text-center">
+              <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-yellow-400/15 text-yellow-600 dark:text-yellow-400">
+                <Package size={26} />
+              </div>
 
-                  <TableHead className="min-w-[125px]">Rental Period</TableHead>
+              <h3 className="text-lg font-semibold">No Rentals Yet</h3>
 
-                  <TableHead className="min-w-[125px]">Booked On</TableHead>
+              <p className="mt-2 max-w-sm text-sm text-muted-foreground">
+                You haven't booked any equipment yet. Explore available
+                equipment and make your first rental.
+              </p>
 
-                  <TableHead className="min-w-[120px]">Amount</TableHead>
+              <Link
+                href="/equipment"
+                className="mt-5 inline-flex h-10 items-center gap-2 rounded-xl bg-yellow-400 px-4 text-sm font-semibold text-black transition hover:bg-yellow-500"
+              >
+                Explore Equipment
+                <ArrowRight size={16} />
+              </Link>
+            </div>
+          ) : (
+            <div className="w-full overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow className="border-border/60 bg-muted/40 hover:bg-muted/40">
+                    <TableHead className="min-w-[210px] px-5 py-4 sm:px-6">
+                      Equipment Name
+                    </TableHead>
 
-                  <TableHead className="min-w-[115px]">Payment</TableHead>
+                    <TableHead className="min-w-[145px]">
+                      Rental Start Date
+                    </TableHead>
 
-                  <TableHead className="min-w-[130px]">
-                    Booking Status
-                  </TableHead>
+                    <TableHead className="min-w-[145px]">
+                      Rental End Date
+                    </TableHead>
 
-                  <TableHead className="min-w-[120px] px-5 text-right sm:px-6">
-                    Booking ID
-                  </TableHead>
-                </TableRow>
-              </TableHeader>
+                    <TableHead className="min-w-[135px]">
+                      Booking Date
+                    </TableHead>
 
-              <TableBody>
-                {rentals.map((rental) => (
-                  <TableRow
-                    key={rental.id}
-                    className="border-border/60 transition-colors hover:bg-muted/30"
-                  >
-                    {/* Equipment */}
-                    <TableCell className="px-5 py-4 sm:px-6">
-                      <div className="flex min-w-[230px] items-center gap-3">
-                        <div className="h-[60px] w-[70px] shrink-0 overflow-hidden rounded-xl border border-border/60 bg-muted">
-                          <img
-                            src={rental.image}
-                            alt={rental.equipment}
-                            className="h-full w-full object-cover transition-transform duration-300 hover:scale-110"
-                          />
-                        </div>
+                    <TableHead className="min-w-[120px]">
+                      Total Amount
+                    </TableHead>
 
-                        <div className="min-w-0">
-                          <p className="line-clamp-2 text-sm font-semibold leading-snug">
-                            {rental.equipment}
-                          </p>
+                    <TableHead className="min-w-[120px]">
+                      Payment Status
+                    </TableHead>
 
-                          <p className="mt-1.5 text-xs text-muted-foreground">
-                            {rental.category}
-                          </p>
-                        </div>
-                      </div>
-                    </TableCell>
-
-                    {/* Rental Period */}
-                    <TableCell>
-                      <div className="space-y-1.5 text-xs">
-                        <p className="font-medium text-foreground">
-                          {rental.startDate}
-                        </p>
-
-                        <p className="text-muted-foreground">
-                          to {rental.endDate}
-                        </p>
-                      </div>
-                    </TableCell>
-
-                    {/* Booking Date */}
-                    <TableCell>
-                      <span className="text-sm text-muted-foreground">
-                        {rental.bookingDate}
-                      </span>
-                    </TableCell>
-
-                    {/* Amount */}
-                    <TableCell>
-                      <span className="text-sm font-bold">
-                        ৳{rental.amount.toLocaleString("en-BD")}
-                      </span>
-                    </TableCell>
-
-                    {/* Payment */}
-                    <TableCell>
-                      <Badge
-                        variant="outline"
-                        className={`rounded-full px-2.5 py-1 text-xs font-semibold ${getPaymentBadge(rental.paymentStatus)}`}
-                      >
-                        {rental.paymentStatus}
-                      </Badge>
-                    </TableCell>
-
-                    {/* Booking Status */}
-                    <TableCell>
-                      <Badge
-                        variant="outline"
-                        className={`rounded-full px-2.5 py-1 text-xs font-semibold ${getBookingBadge(rental.bookingStatus)}`}
-                      >
-                        {rental.bookingStatus}
-                      </Badge>
-                    </TableCell>
-
-                    {/* Booking ID */}
-                    <TableCell className="px-5 text-right sm:px-6">
-                      <span className="whitespace-nowrap text-xs font-semibold text-muted-foreground">
-                        {rental.id}
-                      </span>
-                    </TableCell>
+                    <TableHead className="min-w-[135px] px-5 sm:px-6">
+                      Booking Status
+                    </TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
+                </TableHeader>
+
+                <TableBody>
+                  {bookings.map((booking) => (
+                    <TableRow
+                      key={booking._id}
+                      className="border-border/60 transition-colors hover:bg-muted/30"
+                    >
+                      <TableCell className="px-5 py-4 sm:px-6">
+                        <p className="max-w-[220px] text-sm font-semibold leading-snug">
+                          {booking.equipmentName || "Equipment"}
+                        </p>
+                      </TableCell>
+
+                      <TableCell>
+                        <span className="whitespace-nowrap text-sm">
+                          {formatDate(booking.startDate)}
+                        </span>
+                      </TableCell>
+
+                      <TableCell>
+                        <span className="whitespace-nowrap text-sm">
+                          {formatDate(booking.endDate)}
+                        </span>
+                      </TableCell>
+
+                      <TableCell>
+                        <span className="whitespace-nowrap text-sm text-muted-foreground">
+                          {formatDate(booking.createdAt)}
+                        </span>
+                      </TableCell>
+
+                      <TableCell>
+                        <span className="whitespace-nowrap text-sm font-bold">
+                          {formatAmount(booking.totalAmount)}
+                        </span>
+                      </TableCell>
+
+                      <TableCell>
+                        <Badge
+                          variant="outline"
+                          className={`whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-semibold ${getStatusStyle(booking.paymentStatus)}`}
+                        >
+                          {formatStatus(booking.paymentStatus)}
+                        </Badge>
+                      </TableCell>
+
+                      <TableCell className="px-5 sm:px-6">
+                        <Badge
+                          variant="outline"
+                          className={`whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-semibold ${getStatusStyle(booking.status)}`}
+                        >
+                          {formatStatus(booking.status)}
+                        </Badge>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
         </CardContent>
       </Card>
-
-      {/* Bottom Note */}
-      <div className="flex flex-col gap-4 rounded-2xl border border-border/70 bg-muted/30 p-5 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <p className="text-sm font-semibold">Looking for your next rental?</p>
-
-          <p className="mt-1 text-sm text-muted-foreground">
-            Explore equipment and find the right tools for your project.
-          </p>
-        </div>
-
-        <Link
-          href="/equipment"
-          className="inline-flex h-10 w-fit items-center justify-center gap-2 rounded-xl border border-border bg-background px-4 text-sm font-medium transition-colors hover:bg-muted"
-        >
-          Explore Equipment
-          <ArrowRight size={16} />
-        </Link>
-      </div>
-
-      {/* Demo Notice */}
-      <p className="text-xs leading-relaxed text-muted-foreground">
-        Showing sample rental records for frontend development. Your actual
-        booking history will appear after API integration.
-      </p>
     </div>
   );
 }
