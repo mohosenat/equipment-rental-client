@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Heart,
   MapPin,
@@ -11,9 +11,14 @@ import {
   BookmarkCheck,
   Boxes,
   ArrowRight,
+  Loader2,
 } from "lucide-react";
+import { toast } from "sonner";
+
+import { authClient } from "@/lib/auth-client";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+
 import { Badge } from "@/components/ui/badge";
 
 import {
@@ -24,6 +29,28 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL;
+
+type Equipment = {
+  _id: string;
+  name: string;
+  category?: string;
+  image?: string;
+  images?: string[];
+  location?: string;
+  price?: number;
+  rentalType?: string;
+  condition?: string;
+};
+
+type FavoriteResponse = {
+  _id: string;
+  userId: string;
+  equipmentId: string;
+  createdAt: string;
+  equipment: Equipment | Equipment[];
+};
 
 type FavoriteEquipment = {
   id: string;
@@ -36,61 +63,142 @@ type FavoriteEquipment = {
   condition: string;
 };
 
-const initialFavorites: FavoriteEquipment[] = [
-  {
-    id: "equipment-001",
-    name: "Professional DSLR Camera",
-    category: "Photography",
-    image:
-      "https://images.unsplash.com/photo-1516035069371-29a1b244cc32?w=400&q=80",
-    location: "Dhaka, Bangladesh",
-    price: 1500,
-    rentalType: "Daily",
-    condition: "Excellent",
-  },
-  {
-    id: "equipment-002",
-    name: "Industrial Generator",
-    category: "Construction",
-    image:
-      "https://images.unsplash.com/photo-1473341304170-971dccb5ac1e?w=400&q=80",
-    location: "Chattogram, Bangladesh",
-    price: 2500,
-    rentalType: "Daily",
-    condition: "Good",
-  },
-  {
-    id: "equipment-003",
-    name: "Excavator Machine",
-    category: "Construction",
-    image:
-      "https://images.unsplash.com/photo-1580901368919-7739efb0f5e0?w=400&q=80",
-    location: "Gazipur, Bangladesh",
-    price: 8500,
-    rentalType: "Daily",
-    condition: "Excellent",
-  },
-  {
-    id: "equipment-004",
-    name: "Event Sound System",
-    category: "Event Equipment",
-    image:
-      "https://images.unsplash.com/photo-1506157786151-b8491531f063?w=400&q=80",
-    location: "Dhaka, Bangladesh",
-    price: 3500,
-    rentalType: "Daily",
-    condition: "Good",
-  },
-];
-
 export default function CustomerFavoritesPage() {
-  const [favorites, setFavorites] = useState(initialFavorites);
+  const [favorites, setFavorites] = useState<FavoriteEquipment[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [removingId, setRemovingId] = useState<string | null>(null);
+
+  // Get authentication token
+  const getAuthToken = async () => {
+    const tokenResponse = await authClient.token();
+
+    const tokenData = tokenResponse as unknown as {
+      data?: { token?: string };
+      token?: string;
+    };
+
+    return tokenData.data?.token ?? tokenData.token;
+  };
+
+  // Convert API response into frontend data
+  const formatFavorites = (data: FavoriteResponse[]): FavoriteEquipment[] => {
+    return data
+      .map((favorite) => {
+        const equipment = Array.isArray(favorite.equipment)
+          ? favorite.equipment[0]
+          : favorite.equipment;
+
+        if (!equipment) return null;
+
+        return {
+          id: String(equipment._id || favorite.equipmentId),
+          name: equipment.name || "Unnamed Equipment",
+          category: equipment.category || "Uncategorized",
+          image: equipment.image || equipment.images?.[0] || "",
+          location: equipment.location || "Location not available",
+          price: Number(equipment.price || 0),
+          rentalType: equipment.rentalType || "Daily",
+          condition: equipment.condition || "Not specified",
+        };
+      })
+      .filter((item): item is FavoriteEquipment => item !== null);
+  };
+
+  // Fetch logged-in customer's favorites
+  const fetchFavorites = async () => {
+    try {
+      setIsLoading(true);
+
+      if (!API_URL) {
+        throw new Error("API URL is not configured.");
+      }
+
+      const token = await getAuthToken();
+
+      if (!token) {
+        throw new Error("Please log in to view your favorites.");
+      }
+
+      const response = await fetch(`${API_URL}/favorites`, {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        cache: "no-store",
+      });
+
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.message || "Failed to load favorites.");
+      }
+
+      setFavorites(formatFavorites(result.data || []));
+    } catch (error) {
+      console.error("Fetch favorites error:", error);
+
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Unable to load your favorites.",
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchFavorites();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Remove favorite from database
+  const removeFavorite = async (equipmentId: string) => {
+    const confirmed = window.confirm(
+      "Are you sure you want to remove this equipment from your favorites?",
+    );
+
+    if (!confirmed) return;
+
+    try {
+      setRemovingId(equipmentId);
+
+      const token = await getAuthToken();
+
+      if (!token) {
+        throw new Error("Please log in to manage your favorites.");
+      }
+
+      const response = await fetch(`${API_URL}/favorites/${equipmentId}`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.message || "Failed to remove favorite.");
+      }
+
+      setFavorites((previous) =>
+        previous.filter((item) => item.id !== equipmentId),
+      );
+
+      toast.success("Removed from favorites successfully!");
+    } catch (error) {
+      console.error("Remove favorite error:", error);
+
+      toast.error(
+        error instanceof Error ? error.message : "Unable to remove favorite.",
+      );
+    } finally {
+      setRemovingId(null);
+    }
+  };
 
   const categories = new Set(favorites.map((item) => item.category)).size;
-
-  const removeFavorite = (id: string) => {
-    setFavorites((prev) => prev.filter((item) => item.id !== id));
-  };
 
   return (
     <div className="mx-auto w-full space-y-7">
@@ -202,7 +310,19 @@ export default function CustomerFavoritesPage() {
         </CardHeader>
 
         <CardContent className="p-0">
-          {favorites.length > 0 ? (
+          {isLoading ? (
+            <div className="flex flex-col items-center justify-center px-6 py-16 text-center">
+              <Loader2 className="h-8 w-8 animate-spin text-yellow-500" />
+
+              <p className="mt-4 text-sm font-medium">
+                Loading your favorites...
+              </p>
+
+              <p className="mt-1 text-xs text-muted-foreground">
+                Please wait while we fetch your saved equipment.
+              </p>
+            </div>
+          ) : favorites.length > 0 ? (
             <div className="w-full overflow-x-auto">
               <Table>
                 <TableHeader>
@@ -237,11 +357,17 @@ export default function CustomerFavoritesPage() {
                       <TableCell className="px-5 py-4 sm:px-6">
                         <div className="flex min-w-[230px] items-center gap-3">
                           <div className="h-[60px] w-[70px] shrink-0 overflow-hidden rounded-xl border border-border/60 bg-muted">
-                            <img
-                              src={item.image}
-                              alt={item.name}
-                              className="h-full w-full object-cover transition-transform duration-300 hover:scale-110"
-                            />
+                            {item.image ? (
+                              <img
+                                src={item.image}
+                                alt={item.name}
+                                className="h-full w-full object-cover transition-transform duration-300 hover:scale-110"
+                              />
+                            ) : (
+                              <div className="flex h-full w-full items-center justify-center text-muted-foreground">
+                                <Package size={22} />
+                              </div>
+                            )}
                           </div>
 
                           <div className="min-w-0">
@@ -315,10 +441,15 @@ export default function CustomerFavoritesPage() {
 
                           <button
                             onClick={() => removeFavorite(item.id)}
+                            disabled={removingId === item.id}
                             title="Remove from favorites"
-                            className="flex h-9 w-9 items-center justify-center rounded-lg border border-border text-muted-foreground transition hover:border-red-500/30 hover:bg-red-500/10 hover:text-red-500"
+                            className="flex h-9 w-9 items-center justify-center rounded-lg border border-border text-muted-foreground transition hover:border-red-500/30 hover:bg-red-500/10 hover:text-red-500 disabled:cursor-not-allowed disabled:opacity-50"
                           >
-                            <Trash2 size={15} />
+                            {removingId === item.id ? (
+                              <Loader2 size={15} className="animate-spin" />
+                            ) : (
+                              <Trash2 size={15} />
+                            )}
                           </button>
                         </div>
                       </TableCell>
@@ -371,12 +502,6 @@ export default function CustomerFavoritesPage() {
           <ArrowRight size={16} />
         </Link>
       </div>
-
-      {/* Demo Notice */}
-      <p className="text-xs leading-relaxed text-muted-foreground">
-        Showing sample favorite equipment for frontend development. Your saved
-        items will appear here after API integration.
-      </p>
     </div>
   );
 }
