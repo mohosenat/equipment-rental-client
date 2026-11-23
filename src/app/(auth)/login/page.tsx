@@ -46,7 +46,16 @@ export default function LoginPage() {
         return;
       }
 
-      router.push("/");
+      // Refresh the Better Auth session
+      const session = await authClient.getSession();
+
+      if (!session.data?.user) {
+        setError("Login successful, but session could not be loaded.");
+        return;
+      }
+
+      // Navigate after the session is available
+      router.replace("/");
       router.refresh();
     } catch {
       setError("Unable to login. Please try again.");
