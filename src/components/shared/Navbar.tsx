@@ -30,12 +30,30 @@ function NavbarContent() {
   const [mounted, setMounted] = useState(false);
 
   const { data: session, isPending } = authClient.useSession();
+  const [currentSession, setCurrentSession] = useState(session);
+
+  useEffect(() => {
+    setCurrentSession(session);
+  }, [session]);
+
+  useEffect(() => {
+    const refreshAuthSession = async () => {
+      const result = await authClient.getSession();
+      setCurrentSession(result.data);
+    };
+
+    window.addEventListener("rentro-auth-change", refreshAuthSession);
+
+    return () => {
+      window.removeEventListener("rentro-auth-change", refreshAuthSession);
+    };
+  }, []);
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
-  const user = session?.user as
+  const user = currentSession?.user as
     | {
         name?: string;
         email?: string;
@@ -43,7 +61,7 @@ function NavbarContent() {
       }
     | undefined;
 
-  const isLoggedIn = !!session;
+  const isLoggedIn = !!currentSession;
   const role = user?.role?.toLowerCase();
 
   const dashboardHref =
@@ -61,6 +79,8 @@ function NavbarContent() {
   const handleLogout = async () => {
     try {
       await authClient.signOut();
+
+      window.dispatchEvent(new Event("rentro-auth-change"));
       setIsMenuOpen(false);
       router.push("/");
       router.refresh();
